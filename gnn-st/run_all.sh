@@ -1,0 +1,15 @@
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-01 --model gcn
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-01 --model gat
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-01 --model sage
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-01 --model gin
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-01 --model appnp
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-02 --model gcn
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-02 --model gat
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-02 --model sage
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-02 --model gin
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-02 --model appnp
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-03 --model gcn
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-03 --model gat
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-03 --model sage
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-03 --model gin
+python main_gnn.py --adata_dir ../../dataset_10x-visium-processed/dataset-16384-03 --model appnp
