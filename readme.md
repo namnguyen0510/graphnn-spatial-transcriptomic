@@ -10,3 +10,5 @@ The code to preprocess 10x-Visium data is `gnn-st/main_feature_sel_hvg.py`. The 
 ```
 python main.py --adata_dir [path_to_data] --model [MODEL_CLASS]
 ```
+## Example notebook
+The jupyter notebook in `gnn-SOTA` is an example to trained optimized GNN models. Modify the path to `best_model_config.json` to the evaluated model.
