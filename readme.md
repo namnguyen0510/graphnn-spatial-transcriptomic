@@ -12,3 +12,11 @@ python main.py --adata_dir [path_to_data] --model [MODEL_CLASS]
 ```
 ## Example notebook
 The jupyter notebook in `gnn-SOTA` is an example to trained optimized GNN models. Modify the path to `best_model_config.json` to the evaluated model.
+
+# Results
+## Update: July 15, 2025
+### Accuracy Results
+![Accuracy Results](https://github.com/namnguyen0510/graphnn-spatial-transcriptomic/raw/main/assets/acc_results.jpg)
+
+### Hyperparameter Optimization
+![Hyperparameter Optimization](https://github.com/namnguyen0510/graphnn-spatial-transcriptomic/raw/main/assets/hyperopt.jpg)
