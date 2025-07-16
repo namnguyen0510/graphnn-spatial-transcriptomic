@@ -19,7 +19,7 @@ import optuna
 import argparse
 from optuna.samplers import TPESampler
 
-
+from utils import *
 from models import MODEL_CLASSES  # Includes GCN, GAT, GraphSAGE, etc.
 
 # ========== CLI Args ==========
@@ -27,9 +27,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--adata_dir', type = str)
 parser.add_argument('--model', type=str, default='appnp', choices=['gcn', 'gat', 'sage', 'gin', 'appnp'])
 parser.add_argument('--n_trials', type=int, default=100)
-parser.add_argument('--batch_size', type=int, default=512)
+parser.add_argument('--batch_size', type=int, default=1024)
 parser.add_argument('--num_epochs_search', type=int, default=10)
-parser.add_argument('--num_epochs_eval', type=int, default=100)
+parser.add_argument('--num_epochs_eval', type=int, default=50)
 parser.add_argument('--study_name', type=str, default='gnn_study')
 parser.add_argument('--db_path', type=str, default='optuna_study.db')
 args = parser.parse_args()
@@ -55,28 +55,17 @@ set_seed(42)
 adata_dir = args.adata_dir
 adata_paths = [os.path.join(adata_dir, x) for x in sorted(os.listdir(adata_dir))]
 pnames = sorted(os.listdir(adata_dir))
+pnames = [x.split('.')[0] for x in pnames]
 for train_pid in range(len(adata_paths)):
 
     results_dir = f'results_pid_{pnames[train_pid]}_{selected_model}'
     os.makedirs(results_dir, exist_ok=True)
 
-    adata = sc.read_h5ad(adata_paths[train_pid])
-    X = adata.X.toarray() if not isinstance(adata.X, np.ndarray) else adata.X
-    Y = LabelEncoder().fit_transform(adata.obs['Region'])
+    adata_train = sc.read_h5ad(adata_paths[train_pid])
+    X = adata_train.X.toarray() if not isinstance(adata_train.X, np.ndarray) else adata_train.X
+    Y = LabelEncoder().fit_transform(adata_train.obs['Region'])
 
-    sc.pp.neighbors(adata, n_neighbors=15, use_rep='X')
-    edge_index, _ = from_scipy_sparse_matrix(adata.obsp['connectivities'])
-
-    train_idx, eval_idx = train_test_split(np.arange(len(Y)), test_size=0.2, random_state=42, stratify=Y)
-
-    data = Data(x=torch.tensor(X, dtype=torch.float),
-                edge_index=edge_index,
-                y=torch.tensor(Y, dtype=torch.long))
-    data.train_mask = torch.zeros(len(Y), dtype=torch.bool)
-    data.train_mask[train_idx] = True
-    data.eval_mask = torch.zeros(len(Y), dtype=torch.bool)
-    data.eval_mask[eval_idx] = True
-
+    
     # ========== 2. Evaluation Function ==========
     def evaluate(model, loader, loss_fn):
         model.eval()
@@ -97,10 +86,26 @@ for train_pid in range(len(adata_paths)):
     # ========== 3. Objective Function for Optuna ==========
     def objective(trial):
         hidden_channels = trial.suggest_categorical('hidden_channels', [64, 128, 256, 512, 1024])
+        num_neighbors_sgraph = trial.suggest_categorical('num_neighbors', [3, 5, 15, 30])
         dropout = trial.suggest_float('dropout', 0.1, 0.6)
         lr = trial.suggest_float('lr', 1e-4, 1e-2)
         num_layers = trial.suggest_int('num_layers', 2, 5)
         optimizer_name = trial.suggest_categorical('optimizer', ['Adam', 'AdamW', 'SGD', 'RMSprop'])
+        
+        # Fixed code using spatial graph
+        construct_interaction_KNN(adata_train, n_neighbors=num_neighbors_sgraph)  
+        adj_spatial = adata_train.obsm['adj']
+        edge_index = dense_to_sparse_edge_index(adj_spatial)
+
+        train_idx, eval_idx = train_test_split(np.arange(len(Y)), test_size=0.2, random_state=42, stratify=Y)
+
+        data = Data(x=torch.tensor(X, dtype=torch.float),
+                    edge_index=edge_index,
+                    y=torch.tensor(Y, dtype=torch.long))
+        data.train_mask = torch.zeros(len(Y), dtype=torch.bool)
+        data.train_mask[train_idx] = True
+        data.eval_mask = torch.zeros(len(Y), dtype=torch.bool)
+        data.eval_mask[eval_idx] = True
 
         model = MODEL_CLASSES[selected_model](
             in_channels=X.shape[1],
@@ -124,9 +129,9 @@ for train_pid in range(len(adata_paths)):
         loss_fn = nn.CrossEntropyLoss()
 
         train_loader = NeighborLoader(data, input_nodes=data.train_mask,
-                                    num_neighbors=[3], batch_size=batch_size, shuffle=True, num_workers=0)
+                                    num_neighbors=[num_neighbors_sgraph], batch_size=batch_size, shuffle=True, num_workers=0)
         eval_loader = NeighborLoader(data, input_nodes=data.eval_mask,
-                                    num_neighbors=[3], batch_size=batch_size, shuffle=False, num_workers=0)
+                                    num_neighbors=[num_neighbors_sgraph], batch_size=batch_size, shuffle=False, num_workers=0)
 
         for epoch in range(num_epochs_search):  
             model.train()
@@ -140,56 +145,10 @@ for train_pid in range(len(adata_paths)):
 
         _, eval_acc = evaluate(model, eval_loader, loss_fn)
         return eval_acc
-    # ========== 3. Objective Function for Optuna ==========
-    def objective(trial):
-        hidden_channels = trial.suggest_categorical('hidden_channels', [64, 128, 256])
-        dropout = trial.suggest_float('dropout', 0.1, 0.6)
-        lr = trial.suggest_float('lr', 1e-4, 1e-2)
-        num_layers = trial.suggest_int('num_layers', 2, 5)
-        optimizer_name = trial.suggest_categorical('optimizer', ['Adam', 'AdamW', 'SGD', 'RMSprop'])
-
-        model = MODEL_CLASSES[selected_model](
-            in_channels=X.shape[1],
-            hidden_channels=hidden_channels,
-            out_channels=np.unique(Y).shape[0],
-            num_layers=num_layers,
-            dropout=dropout
-        )
-
-        if optimizer_name == 'Adam':
-            optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-        elif optimizer_name == 'AdamW':
-            optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-        elif optimizer_name == 'SGD':
-            optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
-        elif optimizer_name == 'RMSprop':
-            optimizer = torch.optim.RMSprop(model.parameters(), lr=lr)
-        else:
-            raise ValueError(f"Unsupported optimizer: {optimizer_name}")
-
-        loss_fn = nn.CrossEntropyLoss()
-
-        train_loader = NeighborLoader(data, input_nodes=data.train_mask,
-                                    num_neighbors=[3], batch_size=batch_size, shuffle=True, num_workers=0)
-        eval_loader = NeighborLoader(data, input_nodes=data.eval_mask,
-                                    num_neighbors=[3], batch_size=batch_size, shuffle=False, num_workers=0)
-
-        for epoch in range(num_epochs_search):  
-            model.train()
-            for batch in train_loader:
-                batch = batch.to('cpu')
-                optimizer.zero_grad()
-                out = model(batch.x, batch.edge_index)[batch.batch_size:]
-                loss = loss_fn(out, batch.y[batch.batch_size:])
-                loss.backward()
-                optimizer.step()
-
-        _, eval_acc = evaluate(model, eval_loader, loss_fn)
-        return eval_acc
-
+    
 
     # ========== 4. Run Optuna ==========
-    storage_str = f"sqlite:///{train_pid}-{selected_model}-{args.db_path}"
+    storage_str = f"sqlite:///{pnames[train_pid]}-{selected_model}-{args.db_path}"
     study = optuna.create_study(
         direction='maximize',
         study_name=args.study_name,
@@ -230,13 +189,26 @@ for train_pid in range(len(adata_paths)):
     else:
         raise ValueError(f"Unsupported optimizer: {optimizer_name}")
 
+    # Fixed code using spatial graph
+    construct_interaction_KNN(adata_train, n_neighbors=best_params['num_neighbors'])  
+    adj_spatial = adata_train.obsm['adj']
+    edge_index = dense_to_sparse_edge_index(adj_spatial)
 
-    loss_fn = nn.CrossEntropyLoss()
+    train_idx, eval_idx = train_test_split(np.arange(len(Y)), test_size=0.2, random_state=42, stratify=Y)
 
+    data = Data(x=torch.tensor(X, dtype=torch.float),
+                edge_index=edge_index,
+                y=torch.tensor(Y, dtype=torch.long))
+    data.train_mask = torch.zeros(len(Y), dtype=torch.bool)
+    data.train_mask[train_idx] = True
+    data.eval_mask = torch.zeros(len(Y), dtype=torch.bool)
+    data.eval_mask[eval_idx] = True
+    
     train_loader = NeighborLoader(data, input_nodes=data.train_mask,
-                                num_neighbors=[3], batch_size=batch_size, shuffle=True, num_workers=0)
+                                num_neighbors=[best_params['num_neighbors']], batch_size=batch_size, shuffle=True, num_workers=0)
     eval_loader = NeighborLoader(data, input_nodes=data.eval_mask,
-                                num_neighbors=[3], batch_size=batch_size, shuffle=False, num_workers=0)
+                                num_neighbors=[best_params['num_neighbors']], batch_size=batch_size, shuffle=False, num_workers=0)
+    loss_fn = nn.CrossEntropyLoss()
 
     train_log = []
     best_eval_acc = 0
@@ -288,7 +260,7 @@ for train_pid in range(len(adata_paths)):
     )
     model.load_state_dict(torch.load(best_model_meta['best_model_path']))
     print(f"\nLoaded best model from {best_model_meta['best_model_path']}")
-
+    best_num_neighbors_sgraph = best_model_meta['params']['num_neighbors']
     test_pids = [i for i in range(len(adata_paths)) if i != train_pid]
     test_results = {}
 
@@ -297,8 +269,10 @@ for train_pid in range(len(adata_paths)):
         X_test = adata_test.X.toarray() if not isinstance(adata_test.X, np.ndarray) else adata_test.X
         Y_test = LabelEncoder().fit_transform(adata_test.obs['Region'])
 
-        sc.pp.neighbors(adata_test, n_neighbors=3, use_rep='X')
-        edge_index_test, _ = from_scipy_sparse_matrix(adata_test.obsp['connectivities'])
+        construct_interaction_KNN(adata_test, n_neighbors=best_num_neighbors_sgraph)  
+        adj_spatial_test = adata_test.obsm['adj']
+        edge_index_test = dense_to_sparse_edge_index(adj_spatial_test)
+
 
         data_test = Data(x=torch.tensor(X_test, dtype=torch.float),
                         edge_index=edge_index_test,
@@ -307,7 +281,7 @@ for train_pid in range(len(adata_paths)):
 
         test_loader = NeighborLoader(
             data_test, input_nodes=data_test.test_mask,
-            num_neighbors=[3], batch_size=16, shuffle=False, num_workers=0)
+            num_neighbors=[best_num_neighbors_sgraph], batch_size=16, shuffle=False, num_workers=0)
 
         test_loss, test_acc = evaluate(model, test_loader, loss_fn)
         test_results[pid] = {'loss': float(test_loss), 'accuracy': float(test_acc)}
