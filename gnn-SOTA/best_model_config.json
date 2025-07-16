@@ -1,10 +1,11 @@
 {
-  "best_model_path": "results_pid_151507.h5ad_gin/gin_h128_l2_d0.46_lr2e-03.pth",
+  "best_model_path": "results_pid_151507_gcn/gcn_h512_l3_d0.27_lr2e-03.pth",
   "params": {
-    "hidden_channels": 128,
-    "dropout": 0.4605812003658651,
-    "lr": 0.0024675736770887937,
-    "num_layers": 2,
-    "optimizer": "AdamW"
+    "hidden_channels": 512,
+    "num_neighbors": 5,
+    "dropout": 0.2690851529012735,
+    "lr": 0.002025225495945881,
+    "num_layers": 3,
+    "optimizer": "Adam"
   }
 }
