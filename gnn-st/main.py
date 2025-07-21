@@ -73,11 +73,11 @@ for train_pid in range(len(adata_paths)):
         with torch.no_grad():
             for batch in loader:
                 batch = batch.to('cpu')
-                out = model(batch.x, batch.edge_index)[batch.batch_size:]
-                loss = loss_fn(out, batch.y[batch.batch_size:])
+                out = model(batch.x, batch.edge_index)
+                loss = loss_fn(out, batch.y)
                 total_loss += loss.item() * batch.batch_size
                 all_preds.append(out.argmax(dim=1))
-                all_labels.append(batch.y[batch.batch_size:])
+                all_labels.append(batch.y)
         y_true = torch.cat(all_labels)
         y_pred = torch.cat(all_preds)
         acc = accuracy_score(y_true.numpy(), y_pred.numpy())
@@ -138,8 +138,8 @@ for train_pid in range(len(adata_paths)):
             for batch in train_loader:
                 batch = batch.to('cpu')
                 optimizer.zero_grad()
-                out = model(batch.x, batch.edge_index)[batch.batch_size:]
-                loss = loss_fn(out, batch.y[batch.batch_size:])
+                out = model(batch.x, batch.edge_index)
+                loss = loss_fn(out, batch.y)
                 loss.backward()
                 optimizer.step()
 
@@ -218,8 +218,8 @@ for train_pid in range(len(adata_paths)):
         for batch in train_loader:
             batch = batch.to('cpu')
             optimizer.zero_grad()
-            out = model(batch.x, batch.edge_index)[batch.batch_size:]
-            loss = loss_fn(out, batch.y[batch.batch_size:])
+            out = model(batch.x, batch.edge_index)
+            loss = loss_fn(out, batch.y)
             loss.backward()
             optimizer.step()
 
