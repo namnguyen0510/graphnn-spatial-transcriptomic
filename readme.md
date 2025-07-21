@@ -16,7 +16,7 @@ The jupyter notebook in `gnn-SOTA` is an example to trained optimized GNN models
 # Results
 ## Update: July 21, 2025
 ### Accuracy Results
-![Accuracy Results](https://github.com/namnguyen0510/graphnn-spatial-transcriptomic/raw/main/assets/accuracy_combined_plot.jpg)
+![Accuracy Results](https://github.com/namnguyen0510/graphnn-spatial-transcriptomic/raw/main/assets/accuracy_combined_plot.png)
 
 ### Hyperparameter Optimization
 ![Hyperparameter Optimization](https://github.com/namnguyen0510/graphnn-spatial-transcriptomic/raw/main/assets/hyperopt.jpg)
