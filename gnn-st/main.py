@@ -25,9 +25,9 @@ from models import MODEL_CLASSES  # Includes GCN, GAT, GraphSAGE, etc.
 # ========== CLI Args ==========
 parser = argparse.ArgumentParser()
 parser.add_argument('--adata_dir', type = str)
-parser.add_argument('--model', type=str, default='appnp', choices=['gcn', 'gat', 'sage', 'gin', 'appnp'])
-parser.add_argument('--n_trials', type=int, default=100)
-parser.add_argument('--batch_size', type=int, default=1024)
+parser.add_argument('--model', type=str, default='appnp', choices=['gcn','gat','sage','gin','appnp','recurrent','cheb','dna','tag','transformer','gated'])
+parser.add_argument('--n_trials', type=int, default=1)
+parser.add_argument('--batch_size', type=int, default=32)
 parser.add_argument('--num_epochs_search', type=int, default=10)
 parser.add_argument('--num_epochs_eval', type=int, default=50)
 parser.add_argument('--study_name', type=str, default='gnn_study')
